@@ -231,6 +231,17 @@ class TestDeepseekVSeriesPassThrough:
         result = normalize_model_for_provider("deepseek-v4-flash", "deepseek")
         assert result == "deepseek-v4-flash"
 
+    @pytest.mark.parametrize("model", [
+        "deepseek-v3",
+        "deepseek-v2",
+        "deepseek-v1",
+        "deepseek-v3-0324",
+        "deepseek/deepseek-v3",
+    ])
+    def test_pre_v4_versions_fold_to_chat(self, model):
+        """V1-V3 are not first-class DeepSeek IDs; only V4+ pass through."""
+        assert _normalize_for_deepseek(model) == "deepseek-chat"
+
 
 # ── DeepSeek regressions (existing behaviour still holds) ──────────────
 

@@ -118,8 +118,9 @@ _LOWERCASE_MODEL_PROVIDERS: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 # DeepSeek special handling
 # ---------------------------------------------------------------------------
-# DeepSeek's API only recognises exactly two model identifiers.  We map
-# common aliases and patterns to the canonical names.
+# DeepSeek's API accepts a small native model namespace.  Preserve current
+# first-party IDs instead of folding them into the chat alias; only loose
+# marketing/user aliases are normalized.
 
 _DEEPSEEK_REASONER_KEYWORDS: frozenset[str] = frozenset({
     "reasoner",
@@ -130,10 +131,10 @@ _DEEPSEEK_REASONER_KEYWORDS: frozenset[str] = frozenset({
 })
 
 _DEEPSEEK_CANONICAL_MODELS: frozenset[str] = frozenset({
-    "deepseek-chat",       # V3 on DeepSeek direct and most aggregators
-    "deepseek-reasoner",   # R1-family reasoning model
-    "deepseek-v4-pro",     # V4 Pro — first-class model ID
-    "deepseek-v4-flash",   # V4 Flash — first-class model ID
+    "deepseek-chat",       # compatibility alias; deprecated 2026-07-24
+    "deepseek-reasoner",   # compatibility alias; deprecated 2026-07-24
+    "deepseek-v4-pro",     # V4 Pro — current first-class model ID
+    "deepseek-v4-flash",   # V4 Flash — current first-class model ID
 })
 
 # First-class V-series IDs (``deepseek-v4-pro``, ``deepseek-v4-flash``,
@@ -141,8 +142,11 @@ _DEEPSEEK_CANONICAL_MODELS: frozenset[str] = frozenset({
 # Verified empirically 2026-04-24: DeepSeek's Chat Completions API returns
 # ``provider: DeepSeek`` / ``model: deepseek-v4-flash-20260423`` when called
 # with ``model=deepseek/deepseek-v4-flash``, so these names are not aliases
-# of ``deepseek-chat`` and must not be folded into it.
-_DEEPSEEK_V_SERIES_RE = re.compile(r"^deepseek-v\d+([-.].+)?$")
+# of ``deepseek-chat`` and must not be folded into it. Only V4 and above are
+# first-class; V1-V3 are not accepted by the DeepSeek API (HTTP 400 "Model Not
+# Exist") and are served as ``deepseek-chat``, so the major version is captured
+# and gated to ``>= 4`` at the call site.
+_DEEPSEEK_V_SERIES_RE = re.compile(r"^deepseek-v(\d+)([-.].+)?$")
 
 
 def _normalize_for_deepseek(model_name: str) -> str:
@@ -151,8 +155,9 @@ def _normalize_for_deepseek(model_name: str) -> str:
     Rules:
     - Already a known canonical (``deepseek-chat``/``deepseek-reasoner``/
       ``deepseek-v4-pro``/``deepseek-v4-flash``) -> pass through.
-    - Matches the V-series pattern ``deepseek-v<digit>...`` -> pass through
-      (covers future ``deepseek-v5-*`` and dated variants without a release).
+    - Matches the V4+ series pattern ``deepseek-v<major>...`` with major >= 4
+      -> pass through (covers ``deepseek-v4-*``, future ``deepseek-v5-*`` and
+      dated variants). V1-V3 are not first-class and fold to ``deepseek-chat``.
     - Contains a reasoner keyword (r1, think, reasoning, cot, reasoner)
       -> ``deepseek-reasoner``.
     - Everything else -> ``deepseek-chat``.
@@ -168,8 +173,11 @@ def _normalize_for_deepseek(model_name: str) -> str:
     if bare in _DEEPSEEK_CANONICAL_MODELS:
         return bare
 
-    # V-series first-class IDs (v4-pro, v4-flash, future v5-*, dated variants)
-    if _DEEPSEEK_V_SERIES_RE.match(bare):
+    # V-series first-class IDs are V4+ only (v4-pro, v4-flash, future v5-*,
+    # dated variants). V1-V3 are not accepted by the DeepSeek API and fold to
+    # deepseek-chat below.
+    _v_match = _DEEPSEEK_V_SERIES_RE.match(bare)
+    if _v_match and int(_v_match.group(1)) >= 4:
         return bare
 
     # Check for reasoner-like keywords anywhere in the name
