@@ -26,6 +26,7 @@ explicit bounded joins.
 
 from __future__ import annotations
 
+import sys
 import threading
 import weakref
 from concurrent.futures import ThreadPoolExecutor
@@ -38,7 +39,7 @@ class DaemonThreadPoolExecutor(ThreadPoolExecutor):
     """ThreadPoolExecutor variant whose workers do not block process exit."""
 
     def _adjust_thread_count(self) -> None:
-        # Mirrors CPython's implementation (3.8–3.13) with two changes:
+        # Mirrors CPython's implementation (3.8–3.14) with two changes:
         # daemon=True and no _threads_queues registration.
         if self._idle_semaphore.acquire(timeout=0):
             return
@@ -49,16 +50,30 @@ class DaemonThreadPoolExecutor(ThreadPoolExecutor):
         num_threads = len(self._threads)
         if num_threads < self._max_workers:
             thread_name = "%s_%d" % (self._thread_name_prefix or self, num_threads)
-            t = threading.Thread(
-                name=thread_name,
-                target=_worker,
-                args=(
-                    weakref.ref(self, weakref_cb),
-                    self._work_queue,
-                    self._initializer,
-                    self._initargs,
-                ),
-                daemon=True,
-            )
+            if sys.version_info >= (3, 14):
+                # Python 3.14 refactored the worker signature to accept a
+                # WorkerContext object instead of separate initializer/initargs.
+                t = threading.Thread(
+                    name=thread_name,
+                    target=_worker,
+                    args=(
+                        weakref.ref(self, weakref_cb),
+                        self._create_worker_context(),
+                        self._work_queue,
+                    ),
+                    daemon=True,
+                )
+            else:
+                t = threading.Thread(
+                    name=thread_name,
+                    target=_worker,
+                    args=(
+                        weakref.ref(self, weakref_cb),
+                        self._work_queue,
+                        self._initializer,
+                        self._initargs,
+                    ),
+                    daemon=True,
+                )
             t.start()
             self._threads.add(t)
