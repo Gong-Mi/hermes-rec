@@ -16,6 +16,12 @@ DEFAULT_CODEX_MODELS: List[str] = [
     "gpt-5.4-mini",
     "gpt-5.4",
     "gpt-5.3-codex",
+    # gpt-5.6 series: Sol, Terra, Luna — discovered via Codex upstream
+    # (openai/codex, model-provider-info & provider crates).
+    # Exposed through OpenAI API and Amazon Bedrock.
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     # gpt-5.3-codex-spark is in research preview and is exposed *only* via
     # the Codex CLI / OAuth backend (chatgpt.com/backend-api/codex/models)
     # for ChatGPT Pro subscribers. It is NOT available in the public OpenAI
@@ -44,6 +50,9 @@ DEFAULT_CODEX_MODELS: List[str] = [
 ]
 
 _FORWARD_COMPAT_TEMPLATE_MODELS: List[tuple[str, tuple[str, ...]]] = [
+    ("gpt-5.6-sol", ("gpt-5.5",)),
+    ("gpt-5.6-terra", ("gpt-5.5",)),
+    ("gpt-5.6-luna", ("gpt-5.5",)),
     ("gpt-5.5", ("gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")),
     ("gpt-5.4-mini", ("gpt-5.3-codex",)),
     ("gpt-5.4", ("gpt-5.3-codex",)),
